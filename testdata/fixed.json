@@ -1,0 +1,40 @@
+{
+  "claims": {
+    "aud": "fileshare",
+    "email": "dora@example.test",
+    "email_verified": true,
+    "exp": 2000000000,
+    "groups": [
+      "engineers",
+      "oncall"
+    ],
+    "iat": 1700000000,
+    "iss": "https://login.example.test",
+    "preferred_username": "dora",
+    "sub": "user-1"
+  },
+  "es256": "eyJhbGciOiJFUzI1NiIsImtpZCI6ImVjLWZpeGVkIiwidHlwIjoiSldUIn0.eyJpc3MiOiJodHRwczovL2xvZ2luLmV4YW1wbGUudGVzdCIsInN1YiI6InVzZXItMSIsImF1ZCI6ImZpbGVzaGFyZSIsImV4cCI6MjAwMDAwMDAwMCwiaWF0IjoxNzAwMDAwMDAwLCJwcmVmZXJyZWRfdXNlcm5hbWUiOiJkb3JhIiwiZW1haWwiOiJkb3JhQGV4YW1wbGUudGVzdCIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJncm91cHMiOlsiZW5naW5lZXJzIiwib25jYWxsIl19.nKn1sOsp0VlGXtsaBtQHdohsf8PvfTvi4is9SVoFrsG3-fS2Euuw8JtYKxuKjrGjS2KkN8BToTH4AQhyIxzqHg",
+  "jwks": {
+    "keys": [
+      {
+        "alg": "RS256",
+        "e": "AQAB",
+        "kid": "rsa-fixed",
+        "kty": "RSA",
+        "n": "mRVmSAbsSJAX_TwKFuJ4TEBpXBfqGW1UixGS-vDOC-OlsyZy8FtyQs-eW7sOGO8Jz-HIWxVNI647fDy7iw7qYeMR0VNZrhoXnR7O1efHsF-hAWFigoem84unjxHNfQeHY9S3MTh68OJuDlh_PLhRiN-91iLrFAVVnmDLngYtJ0lAxHKahUytDOMI_MF_zIkrGzqh8WYwyxW8fP5HmzGN00PjTblUBAL0eFMWScr0Elatz83lakB-X_2HDV8Z3Lc95vJG3rshWIKdXgp4vIJynfkMOEelIt7vASsMUriIq95SWftbO3S8ctsjPLqUnfjFlSlQAhpRsPuwmf8ycfcQ_w",
+        "use": "sig"
+      },
+      {
+        "alg": "ES256",
+        "crv": "P-256",
+        "kid": "ec-fixed",
+        "kty": "EC",
+        "use": "sig",
+        "x": "UAqsTMpzsf1RBadF4kVYCrbbKWgLJ55GASXFsXIAoTE",
+        "y": "oJ1iVsz1EDbpr8HujRRDv2-RBXSBB1vH1BUOO-MpX30"
+      }
+    ]
+  },
+  "ps256": "eyJhbGciOiJQUzI1NiIsImtpZCI6InJzYS1maXhlZCIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJodHRwczovL2xvZ2luLmV4YW1wbGUudGVzdCIsInN1YiI6InVzZXItMSIsImF1ZCI6ImZpbGVzaGFyZSIsImV4cCI6MjAwMDAwMDAwMCwiaWF0IjoxNzAwMDAwMDAwLCJwcmVmZXJyZWRfdXNlcm5hbWUiOiJkb3JhIiwiZW1haWwiOiJkb3JhQGV4YW1wbGUudGVzdCIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJncm91cHMiOlsiZW5naW5lZXJzIiwib25jYWxsIl19.Pq2Dw-BhIZfoxIKyQ_j9efhBlYXeWO5ZKzYsE1zrMA-q2BOz6fs1F4jK1xx7d1O7e5mROvtKrP9O4UBVCix3xuWBxoYHw0kMR_p2yrMTfzoODHuxtwqvjU8ORYq8k3mtvUaHXh0sVuof8GW1I1HckfRvsozs8VtdTZJ-lCeNlN0BHL6dJjMWY-FoaM6LI2l2v2xU66jF8Kns3Tv9vNOljk_fxXL2yUwSWepL03-N8VyH-IPti1JMsoO5XXDH4wl-i6rVEakGK6TdeX1fqWbMUP6eh3rbznKflyDDWJlbVKov-Ge9RHy0HSqJLvxwbYrO_khzQWPwtBKaGjRFn4A3xw",
+  "rs256": "eyJhbGciOiJSUzI1NiIsImtpZCI6InJzYS1maXhlZCIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJodHRwczovL2xvZ2luLmV4YW1wbGUudGVzdCIsInN1YiI6InVzZXItMSIsImF1ZCI6ImZpbGVzaGFyZSIsImV4cCI6MjAwMDAwMDAwMCwiaWF0IjoxNzAwMDAwMDAwLCJwcmVmZXJyZWRfdXNlcm5hbWUiOiJkb3JhIiwiZW1haWwiOiJkb3JhQGV4YW1wbGUudGVzdCIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJncm91cHMiOlsiZW5naW5lZXJzIiwib25jYWxsIl19.UAhGO-rNoweFeMjdU8Aa7lutzKXNEmEW5FUW1YjaBoxf4sWU1y6NrJP9qM6RP1yAXK6tiDnWwIeX2OejyUa2sNPdBTzrd0PJD8o3FV_ptW3Hz7tmXcuqLSPiqeMrX8UH7UlITJlknor40uwfrcwHXdgNLFrQ-SqKe8kpCRcdYO-zkxs2ijTPj-jbbpVsYeG39Su4NTcPUDBDJLrTogJIMrbDxfKTHs7JOD1YiHFZ87MrlQ2saw4IY0NE_kCEmYjcOZfiDp2VPvl0mndfgQBqj_2GFF50QnODLg1jtLqOIPdXrFfHDrH6QPBw4u3vyYAUi5gjAEbe3yXEzCBEm5CrVA"
+}
