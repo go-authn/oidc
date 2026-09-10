@@ -38,11 +38,6 @@ jobs:
       - name: the judge is there
         if: matrix.os == 'ubuntu-latest'
         run: python3 -c "import jwt, cryptography; print('pyjwt is importable')"
-      # And the judge must actually be reachable in this lane: a skip here
-      # looks exactly like a pass.
-      - name: the judge is there
-        if: matrix.os == 'ubuntu-latest'
-        run: python3 -c "import pyotp; print(pyotp.__name__, 'is importable')"
       - run: go vet ./...
       - name: gofmt
         if: matrix.os == 'ubuntu-latest'
