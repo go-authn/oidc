@@ -21,6 +21,25 @@ A token is a signed statement by somebody else about who is asking. Almost all
 of the work is refusing the ones that are not, so the refusals **are** the
 package.
 
+## What it accepts
+
+Ten signature algorithms, as an **allowlist** — a token whose `alg` is not one
+of these is refused before any key is fetched:
+
+| family | algorithms |
+|---|---|
+| RSASSA-PKCS1-v1_5 | `RS256` `RS384` `RS512` |
+| RSASSA-PSS | `PS256` `PS384` `PS512` |
+| ECDSA | `ES256` `ES384` `ES512` |
+| EdDSA (Ed25519) | `EdDSA` |
+
+An allowlist rather than a list of things to reject, because the two fail
+differently: a denylist is only as complete as the taxonomy it was written
+from, and the algorithm it has never heard of is the one it lets through.
+`alg: none` and the HMAC family are refused by *not being here*, which is a
+stronger statement than a rule naming them — and the table below says why each
+would be wrong.
+
 ## What it refuses
 
 | | why |
