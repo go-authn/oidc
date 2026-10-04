@@ -260,13 +260,27 @@ func (j jwk) parse() (any, error) {
 		if err != nil {
 			return nil, err
 		}
-		if len(n) < 256 {
+		// RFC 7518 §2: a Base64urlUInt "MUST utilize the minimum number of
+		// octets". ⛔ Not pedantry: the size check below used to count
+		// OCTETS, so a 1024-bit modulus sent as 256 bytes with leading zeros
+		// passed as a 2048-bit key (found by a README audit, reproduced).
+		if !minimal(n) || !minimal(e) {
+			return nil, fmt.Errorf("oidc: an RSA key whose n or e carries leading zero octets")
+		}
+		modulus := new(big.Int).SetBytes(n)
+		if modulus.BitLen() < 2048 {
 			// 2048 bits is the floor RFC 7518 §3.3 sets for RS256, and a
 			// short key is not a small inconvenience: it is a signature
 			// somebody else can produce.
-			return nil, fmt.Errorf("oidc: an RSA key of %d bits", len(n)*8)
+			return nil, fmt.Errorf("oidc: an RSA key of %d bits", modulus.BitLen())
 		}
-		return &rsa.PublicKey{N: new(big.Int).SetBytes(n), E: int(new(big.Int).SetBytes(e).Int64())}, nil
+		// crypto/rsa takes an int exponent and refuses one past 2^31-1;
+		// anything longer than four octets would be truncated before it got
+		// the chance (big.Int.Int64 is undefined past 64 bits).
+		if len(e) > 4 {
+			return nil, fmt.Errorf("oidc: an RSA exponent of %d octets", len(e))
+		}
+		return &rsa.PublicKey{N: modulus, E: int(new(big.Int).SetBytes(e).Int64())}, nil
 	case "EC":
 		curve, size, err := curveFor(j.Crv)
 		if err != nil {
@@ -344,4 +358,10 @@ func loopbackHost(host string) bool {
 	}
 	ip := net.ParseIP(host)
 	return ip != nil && ip.IsLoopback()
+}
+
+// minimal reports whether b is a Base64urlUInt in its shortest form: no
+// leading zero octet, except zero itself, written as one.
+func minimal(b []byte) bool {
+	return len(b) > 0 && (b[0] != 0 || len(b) == 1)
 }
