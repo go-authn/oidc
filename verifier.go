@@ -83,7 +83,17 @@ func New(ctx context.Context, cfg Config) (*Verifier, error) {
 	}
 	cfg.Issuer = strings.TrimRight(cfg.Issuer, "/")
 	if cfg.Client == nil {
-		cfg.Client = &http.Client{Timeout: 30 * time.Second}
+		// ⛔ Every hop, not only the first URL: an https endpoint that
+		// redirects to http hands the key set to anybody on the way (security
+		// audit). A caller's own Client is covered by stillHTTPS after the
+		// fetch instead.
+		cfg.Client = &http.Client{Timeout: 30 * time.Second,
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				if len(via) >= 10 {
+					return fmt.Errorf("oidc: stopped after %d redirects", len(via))
+				}
+				return httpsOrLoopback(req.URL.String())
+			}}
 	}
 	if cfg.ClockSkew == 0 {
 		cfg.ClockSkew = time.Minute
@@ -122,6 +132,9 @@ func (v *Verifier) discover(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("oidc: reading %s: %w", url, err)
 	}
 	defer res.Body.Close()
+	if err := stillHTTPS(res); err != nil {
+		return "", err
+	}
 	if res.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("oidc: %s answered %s", url, res.Status)
 	}

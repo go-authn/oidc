@@ -195,6 +195,9 @@ func (k *keySet) fetch(ctx context.Context) error {
 		return fmt.Errorf("oidc: reading the key set: %w", err)
 	}
 	defer res.Body.Close()
+	if err := stillHTTPS(res); err != nil {
+		return err
+	}
 	if res.StatusCode != http.StatusOK {
 		return fmt.Errorf("oidc: the key set at %s answered %s", k.url, res.Status)
 	}
@@ -350,6 +353,13 @@ func httpsOrLoopback(raw string) error {
 	}
 	return fmt.Errorf("oidc: %s is not https: the key set decides every signature, "+
 		"and over cleartext so does anybody on the way", raw)
+}
+
+// stillHTTPS refuses a response whose LAST request left https, which is how a
+// redirect followed by a caller's own http.Client would get past a check of
+// the first URL alone.
+func stillHTTPS(res *http.Response) error {
+	return httpsOrLoopback(res.Request.URL.String()) // Client.Do always sets Request
 }
 
 func loopbackHost(host string) bool {
