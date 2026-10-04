@@ -147,9 +147,10 @@ func (v *Verifier) discover(ctx context.Context) (string, error) {
 
 // Verify checks a token and says who it is about.
 //
-// Everything that can be wrong with a token is one error to the caller, and
-// the detail is for a server's own log: a client that sent a token it should
-// not have is not owed an explanation of which check caught it.
+// The error says which check refused the token. That detail is for the
+// server's own log -- this package logs nothing -- and the server answers the
+// client with one refusal whatever the check: a client that sent a token it
+// should not have is not owed an explanation of which check caught it.
 func (v *Verifier) Verify(ctx context.Context, raw string) (*Token, error) {
 	header, payload, signed, signature, err := split(strings.TrimSpace(raw))
 	if err != nil {

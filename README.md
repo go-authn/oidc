@@ -50,12 +50,13 @@ would be wrong.
 | a missing or wrong **audience** | a token minted for another service is a valid token; it is simply not addressed to this one |
 | a token with **no expiry** | that is not a token, it is a password somebody can copy once |
 | an **issuer** or a **key set over cleartext HTTP** | the JWKS decides every signature, and discovery at the issuer says where the JWKS is; over a link somebody can rewrite, so does everything else. Refused by `New`. Loopback is exempt — there is no link |
-| an RSA key **under 2048 bits**, an EC point **not on the curve** | a short key is not a small inconvenience: it is a signature somebody else can produce |
+| an RSA key **under 2048 bits**, an EC point **not on the curve** | a short key is not a small inconvenience: it is a signature somebody else can produce. The size is counted in BITS, and `n` and `e` must be in their shortest form (RFC 7518 §2): before v0.2.2 a 1024-bit modulus padded with zero octets passed as 2048 bits |
 | a key published for **encryption** (`use: enc`) | a key set legitimately holds both, and only one of them checks signatures |
 
-Everything wrong with a token is **one error to the caller** — a client that
-sent a token it should not have is not owed an explanation of which check
-caught it — while the detail goes to the server's own log.
+`Verify`'s error says **which** check refused the token. That detail is for the
+server's own log, and this package logs nothing itself: the server answers the
+client with **one** refusal, whatever the check — a client that sent a token it
+should not have is not owed an explanation of which check caught it.
 
 ## Keys rotate, and an unknown key is not a way to hammer the issuer
 

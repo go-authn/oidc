@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -51,6 +52,34 @@ func TestKeysThatAreRefused(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The same 1024-bit modulus, padded with leading zeros to the 256 octets
+	// a 2048-bit one takes: accepted before the size was counted in bits.
+	padded, err := rsaOfBits(1024)
+	if err != nil {
+		t.Fatal(err)
+	}
+	padded["n"] = b64(append(make([]byte, 128), mustB64(t, padded["n"].(string))...))
+	// 2047 bits fill 256 octets with no padding at all.
+	short, err := rsaOfBits(2047)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A key of the right size, written non-minimally (RFC 7518 §2).
+	zeroLed, err := rsaOfBits(2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	zeroLed["n"] = b64(append([]byte{0}, mustB64(t, zeroLed["n"].(string))...))
+	eZeroLed, err := rsaOfBits(2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	eZeroLed["e"] = b64([]byte{0, 1, 0, 1})
+	eLong, err := rsaOfBits(2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	eLong["e"] = b64([]byte{1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1})
 	offCurve := map[string]any{
 		"kty": "EC", "kid": "ec-bad", "crv": "P-256",
 		// A point that is not on the curve. Implementations have been
@@ -62,6 +91,11 @@ func TestKeysThatAreRefused(t *testing.T) {
 		jwk  map[string]any
 	}{
 		{"an RSA key of 1024 bits", small},
+		{"an RSA key of 1024 bits padded to 256 octets", padded},
+		{"an RSA key of 2047 bits", short},
+		{"an RSA modulus with a leading zero octet", zeroLed},
+		{"an RSA exponent with a leading zero octet", eZeroLed},
+		{"an RSA exponent longer than four octets", eLong},
 		{"a point that is not on the curve", offCurve},
 		{"an EC key on a curve nobody named", map[string]any{"kty": "EC", "kid": "x", "crv": "P-192", "x": b64(make([]byte, 24)), "y": b64(make([]byte, 24))}},
 		{"an Ed25519 key of the wrong length", map[string]any{"kty": "OKP", "kid": "x", "crv": "Ed25519", "x": b64(make([]byte, 16))}},
@@ -215,4 +249,13 @@ func rsaGenerate(bits int) (*rsa.PublicKey, error) {
 		return nil, err
 	}
 	return &key.PublicKey, nil
+}
+
+func mustB64(t *testing.T, s string) []byte {
+	t.Helper()
+	b, err := base64.RawURLEncoding.DecodeString(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
 }
