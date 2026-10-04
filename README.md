@@ -21,6 +21,17 @@ A token is a signed statement by somebody else about who is asking. Almost all
 of the work is refusing the ones that are not, so the refusals **are** the
 package.
 
+The rest of `Config` is optional: `JWKSURL` skips discovery, for a provider that
+does not publish `/.well-known/openid-configuration`; `UsernameClaim` and
+`GroupsClaim` (default `groups`) say which claims name the person and their
+groups; `ClockSkew` (default one minute) and `MinRefresh` (default one minute)
+bound clock drift and key-set refetches; `Client` is the HTTP client for
+discovery and the key set, for a proxy, a private CA or a timeout of its own.
+
+A `Token` reads `Subject`, `Issuer`, `Audience`, `Email`, `EmailVerified`,
+`Username`, `Groups`, `Expiry`, `NotBefore` and `IssuedAt`; `Claim(name, &v)`
+decodes any other claim and `Has(name)` says whether it is there.
+
 ## What it accepts
 
 Ten signature algorithms, as an **allowlist** — a token whose `alg` is not one
