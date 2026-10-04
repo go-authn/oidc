@@ -60,9 +60,16 @@ would be wrong.
 | an issuer that merely **starts with** the right one | `https://login.example.org.evil.test` starts with the right string |
 | a missing or wrong **audience** | a token minted for another service is a valid token; it is simply not addressed to this one |
 | a token with **no expiry** | that is not a token, it is a password somebody can copy once |
-| an **issuer** or a **key set over cleartext HTTP** | the JWKS decides every signature, and discovery at the issuer says where the JWKS is; over a link somebody can rewrite, so does everything else. Refused by `New`. Loopback is exempt — there is no link |
+| an **issuer** or a **key set over cleartext HTTP** | the JWKS decides every signature, and discovery at the issuer says where the JWKS is; over a link somebody can rewrite, so does everything else. Refused by `New`, at every redirect too (since v0.2.4: a redirect from https to http was followed). Loopback is exempt — there is no link |
 | an RSA key **under 2048 bits**, an EC point **not on the curve** | a short key is not a small inconvenience: it is a signature somebody else can produce. The size is counted in BITS, and `n` and `e` must be in their shortest form (RFC 7518 §2): before v0.2.2 a 1024-bit modulus padded with zero octets passed as 2048 bits |
 | a key published for **encryption** (`use: enc`) | a key set legitimately holds both, and only one of them checks signatures |
+
+A token verifies as one string: each part must be base64url in its canonical
+spelling, with nothing else inside (since v0.2.4; a newline or flipped trailing
+bits used to give other strings that verified). ECDSA's `s` and `n − s` both
+verify, as the algorithm allows, and refusing the second would refuse half of
+all honest tokens. So a denylist or a replay cache keys on `jti` or `sub`,
+**never on the token as sent**.
 
 `Verify`'s error says **which** check refused the token. That detail is for the
 server's own log, and this package logs nothing itself: the server answers the

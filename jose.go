@@ -52,9 +52,21 @@ func split(raw string) (header joseHeader, payload, signed, signature []byte, er
 	return header, payload, []byte(parts[0] + "." + parts[1]), signature, nil
 }
 
-// decode is base64url without padding, which is what JOSE uses (RFC 7515 §2).
+// decode is base64url without padding, which is what JOSE uses (RFC 7515 §2),
+// in its one canonical spelling.
+//
+// ⛔ Go's decoder skips \r and \n even in Strict mode, and without Strict it
+// accepts non-zero trailing bits: one signed token then verified as several
+// different strings, which defeats anything keyed on the token as sent -- a
+// denylist, a replay cache (security audit). Anything outside the base64url
+// alphabet is refused first.
 func decode(s string) ([]byte, error) {
-	return base64.RawURLEncoding.DecodeString(s)
+	if i := strings.IndexFunc(s, func(r rune) bool {
+		return !(r >= 'A' && r <= 'Z' || r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '-' || r == '_')
+	}); i >= 0 {
+		return nil, fmt.Errorf("oidc: %q at offset %d is not base64url", s[i], i)
+	}
+	return base64.RawURLEncoding.Strict().DecodeString(s)
 }
 
 // verifySignature checks one signature with one key.
