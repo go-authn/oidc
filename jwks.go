@@ -40,7 +40,21 @@ type keySet struct {
 	mu      sync.Mutex
 	keys    map[string]any
 	untyped []any // keys published without a kid
-	fetched time.Time
+
+	// asked is when the last fetch FINISHED, whether it succeeded or not.
+	// The window is counted from attempts rather than successes: counted from
+	// successes, an issuer whose key set is failing is asked once per forged
+	// token for exactly as long as it is failing.
+	asked time.Time
+	// inflight is the fetch under way, if there is one. A request that needs
+	// the key set while it runs waits for its answer instead of asking again.
+	inflight *inflight
+}
+
+// An inflight fetch, which any number of requests can wait for.
+type inflight struct {
+	done chan struct{}
+	err  error // read only after done is closed
 }
 
 // check verifies a signature, fetching the key set again if what is held
@@ -54,23 +68,14 @@ type keySet struct {
 // moment of the roll until it restarted.
 //
 // Both are bounded by minRefresh: a forged token cannot make this server ask
-// the issuer for keys as fast as it can send.
+// the issuer for keys as fast as it can send. The bound is on ATTEMPTS, so it
+// holds while the issuer is failing too, and it holds for requests that arrive
+// together: the ones that arrive while a fetch is in flight share its answer.
 func (k *keySet) check(ctx context.Context, header joseHeader, signed, signature []byte) error {
 	if err := k.tryHeld(header, signed, signature); err == nil {
 		return nil
 	}
-	k.mu.Lock()
-	stale := time.Since(k.fetched) >= k.minRefresh
-	since := time.Since(k.fetched)
-	k.mu.Unlock()
-	if !stale {
-		if header.Kid != "" {
-			return fmt.Errorf("oidc: no key %q verifies this, and the key set was read %s ago",
-				header.Kid, since.Round(time.Second))
-		}
-		return errBadSignature
-	}
-	if err := k.fetch(ctx); err != nil {
+	if err := k.refresh(ctx, header.Kid); err != nil {
 		return err
 	}
 	if err := k.tryHeld(header, signed, signature); err != nil {
@@ -80,6 +85,48 @@ func (k *keySet) check(ctx context.Context, header joseHeader, signed, signature
 		return errBadSignature
 	}
 	return nil
+}
+
+// refresh fetches the key set again if minRefresh allows it, or waits for the
+// fetch already under way.
+//
+// The fetch runs on its own, detached from the caller's cancellation: it is
+// shared, and one caller giving up must not hand every other one an error.
+// Each caller still stops waiting when its own context ends. The HTTP client's
+// timeout bounds the fetch itself.
+func (k *keySet) refresh(ctx context.Context, kid string) error {
+	k.mu.Lock()
+	f := k.inflight
+	if f == nil {
+		if since := time.Since(k.asked); since < k.minRefresh {
+			k.mu.Unlock()
+			if kid != "" {
+				return fmt.Errorf("oidc: no key %q verifies this, and the key set was asked for %s ago",
+					kid, since.Round(time.Second))
+			}
+			return errBadSignature
+		}
+		f = &inflight{done: make(chan struct{})}
+		k.inflight = f
+		go k.fetchFor(context.WithoutCancel(ctx), f)
+	}
+	k.mu.Unlock()
+	select {
+	case <-f.done:
+		return f.err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+// fetchFor runs one shared fetch and tells everybody waiting for it.
+func (k *keySet) fetchFor(ctx context.Context, f *inflight) {
+	err := k.fetch(ctx) // records asked before the slot is freed
+	k.mu.Lock()
+	k.inflight = nil
+	k.mu.Unlock()
+	f.err = err
+	close(f.done)
 }
 
 // tryHeld verifies against what is held now.
@@ -132,8 +179,13 @@ func (k *keySet) lookupLocked(kid string) ([]any, bool) {
 	return all, len(all) > 0
 }
 
-// fetch reads the key set.
+// fetch reads the key set, and records that it asked whatever the answer.
 func (k *keySet) fetch(ctx context.Context) error {
+	defer func() {
+		k.mu.Lock()
+		k.asked = time.Now()
+		k.mu.Unlock()
+	}()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, k.url, nil)
 	if err != nil {
 		return err
@@ -179,7 +231,7 @@ func (k *keySet) fetch(ctx context.Context) error {
 	}
 	k.mu.Lock()
 	defer k.mu.Unlock()
-	k.keys, k.untyped, k.fetched = keys, untyped, time.Now()
+	k.keys, k.untyped = keys, untyped
 	return nil
 }
 

@@ -3,9 +3,11 @@ package oidc_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -159,6 +161,137 @@ func TestKeyRotationAndTheRefetchLimit(t *testing.T) {
 	rotated := sign(t, next.rsaPEM(t), "RS256", claims(providerAt(next, srv.URL), nil), map[string]any{"kid": "rsa-1"})
 	if _, err := v.Verify(ctx, rotated); err != nil {
 		t.Errorf("a token signed by the rotated key was refused: %v", err)
+	}
+}
+
+// A key set endpoint that counts, can be made to fail, and can be held open,
+// so a test can say exactly how many times the verifier asked.
+type countingKeys struct {
+	*httptest.Server
+	fetches atomic.Int64
+	failing atomic.Bool
+	// hold, when set, keeps every fetch open until it is closed.
+	hold    atomic.Pointer[chan struct{}]
+	current atomic.Pointer[provider]
+}
+
+func newCountingKeys(t *testing.T, p *provider) *countingKeys {
+	t.Helper()
+	c := &countingKeys{}
+	c.current.Store(p)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{"issuer": issuerOf(r), "jwks_uri": issuerOf(r) + "/keys"})
+	})
+	mux.HandleFunc("/keys", func(w http.ResponseWriter, r *http.Request) {
+		c.fetches.Add(1)
+		if hold := c.hold.Load(); hold != nil {
+			<-*hold
+		}
+		if c.failing.Load() {
+			http.Error(w, "down", http.StatusInternalServerError)
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]any{"keys": []any{c.current.Load().rsaJWK()}})
+	})
+	c.Server = httptest.NewServer(mux)
+	t.Cleanup(c.Close)
+	return c
+}
+
+// ⛔ Two hundred tokens with a kid nobody has, all at once, are ONE question
+// to the issuer. The bound is one fetch per MinRefresh, and a bound that holds
+// only for requests arriving one after another is not one: the requests that
+// arrive while a fetch is in flight wait for its answer instead of asking
+// again.
+func TestConcurrentUnknownKidsShareOneFetch(t *testing.T) {
+	ctx := context.Background()
+	p := newProvider(t)
+	keys := newCountingKeys(t, p)
+	v, err := oidc.New(ctx, oidc.Config{
+		Issuer: keys.URL, Audience: "fileshare", MinRefresh: 200 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	unknown := sign(t, p.rsaPEM(t), "RS256", claims(providerAt(p, keys.URL), nil), map[string]any{"kid": "rsa-99"})
+	time.Sleep(250 * time.Millisecond)
+	at := keys.fetches.Load()
+
+	hold := make(chan struct{})
+	keys.hold.Store(&hold)
+	var wg sync.WaitGroup
+	for range 200 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, err := v.Verify(ctx, unknown); err == nil {
+				t.Error("a token with an unknown kid was accepted")
+			}
+		}()
+	}
+	for keys.fetches.Load() == at {
+		time.Sleep(time.Millisecond)
+	}
+	time.Sleep(50 * time.Millisecond) // the rest are queued behind it by now
+
+	// A caller that gives up while the fetch is in flight is answered at once,
+	// not when the issuer gets round to it.
+	gone, cancel := context.WithCancel(ctx)
+	cancel()
+	if _, err := v.Verify(gone, unknown); !errors.Is(err, context.Canceled) {
+		t.Errorf("a caller that gave up while a fetch was in flight got %v", err)
+	}
+
+	keys.hold.Store(nil)
+	close(hold)
+	wg.Wait()
+	if got := keys.fetches.Load() - at; got != 1 {
+		t.Errorf("%d fetches for 200 concurrent tokens with an unknown kid, want 1", got)
+	}
+}
+
+// ⛔ An issuer whose key set is DOWN is still asked at most once per
+// MinRefresh. Counting only the fetches that succeeded would let every forged
+// token through to the issuer for exactly as long as it is failing -- which is
+// when it can least afford it. And once it is back, a rotated key is still
+// picked up after MinRefresh.
+func TestAFailingKeySetIsNotAskedFasterThanMinRefresh(t *testing.T) {
+	ctx := context.Background()
+	old := newProvider(t)
+	next := newProvider(t)
+	keys := newCountingKeys(t, old)
+	v, err := oidc.New(ctx, oidc.Config{
+		Issuer: keys.URL, Audience: "fileshare", MinRefresh: 100 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	unknown := sign(t, old.rsaPEM(t), "RS256", claims(providerAt(old, keys.URL), nil), map[string]any{"kid": "rsa-99"})
+	time.Sleep(120 * time.Millisecond)
+	keys.failing.Store(true)
+	at := keys.fetches.Load()
+
+	_, err = v.Verify(ctx, unknown)
+	if err == nil || !strings.Contains(err.Error(), "answered 500") {
+		t.Errorf("the first token after the issuer failed gave %v, want its error", err)
+	}
+	for range 100 {
+		if _, err := v.Verify(ctx, unknown); err == nil {
+			t.Fatal("a token with an unknown kid was accepted")
+		}
+	}
+	if got := keys.fetches.Load() - at; got != 1 {
+		t.Errorf("%d fetches for 101 tokens while the key set was failing, want 1", got)
+	}
+
+	// The issuer comes back, having rotated.
+	keys.failing.Store(false)
+	keys.current.Store(next)
+	time.Sleep(120 * time.Millisecond)
+	rotated := sign(t, next.rsaPEM(t), "RS256", claims(providerAt(next, keys.URL), nil), map[string]any{"kid": "rsa-1"})
+	if _, err := v.Verify(ctx, rotated); err != nil {
+		t.Errorf("a token signed by the rotated key was refused after the issuer recovered: %v", err)
 	}
 }
 
