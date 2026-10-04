@@ -77,6 +77,53 @@ func TestClaimsThatAreMissingOrOddlyShaped(t *testing.T) {
 	}
 }
 
+// ⛔ The default Username() reaches for "email" only when the issuer says it
+// VERIFIED it. An unverified email is a string the person typed (OIDC Core
+// §5.1), and a correctly signed token carrying somebody else's address would
+// otherwise be admitted under that person's name. Without a verified email the
+// fallback goes on to sub.
+func TestUsernameTakesAnEmailOnlyIfItWasVerified(t *testing.T) {
+	p := newProvider(t)
+	v := verifier(t, p, oidc.Config{})
+	ctx := context.Background()
+	for _, tc := range []struct {
+		name  string
+		extra map[string]any
+		want  string
+	}{
+		{"unverified", map[string]any{"email": "admin@example.org", "email_verified": false}, "user-1"},
+		{"no email_verified at all", map[string]any{"email": "admin@example.org"}, "user-1"},
+		{"email_verified as a string", map[string]any{"email": "admin@example.org", "email_verified": "true"}, "user-1"},
+		{"verified", map[string]any{"email": "alice@example.org", "email_verified": true}, "alice@example.org"},
+		{"preferred_username still comes first", map[string]any{
+			"preferred_username": "alice", "email": "admin@example.org", "email_verified": false,
+		}, "alice"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			raw := sign(t, p.rsaPEM(t), "RS256", claims(p, tc.extra), map[string]any{"kid": "rsa-1"})
+			tok, err := v.Verify(ctx, raw)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := tok.Username(); got != tc.want {
+				t.Errorf("Username() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+
+	// A deployment that names "email" outright gets the claim it named: that
+	// is a decision somebody made, and it is not this fallback's to second-guess.
+	named := verifier(t, p, oidc.Config{UsernameClaim: "email"})
+	raw := sign(t, p.rsaPEM(t), "RS256", claims(p, map[string]any{"email": "bob@example.org"}), map[string]any{"kid": "rsa-1"})
+	tok, err := named.Verify(ctx, raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tok.Username() != "bob@example.org" {
+		t.Errorf("UsernameClaim: email gave %q", tok.Username())
+	}
+}
+
 // An expiry that is not a number is not an expiry.
 func TestATokenWhoseExpiryIsNotOne(t *testing.T) {
 	p := newProvider(t)

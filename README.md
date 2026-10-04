@@ -65,6 +65,34 @@ inadvisable thing several providers do — the **same `kid` with a new key**. A
 verifier that only refetched on an unknown `kid` would refuse every token from
 the moment of the roll until it was restarted.
 
+The bound is on **attempts**, not successes, and it holds for requests that
+arrive together:
+
+- tokens that need the key set while a fetch is under way **wait for that
+  fetch** instead of starting their own — two hundred at once are one request
+  to the issuer;
+- a fetch that **fails** still counts. While the issuer's key set is down, it
+  is asked once per `MinRefresh`, not once per forged token.
+
+Before v0.2.0 neither held: concurrent tokens each fetched, and a failing key
+set was asked again for every token.
+
+## Which name `Username()` gives
+
+By default `preferred_username`, then `email` **only when `email_verified` is
+`true`**, then `sub`. An email the issuer did not verify is a string the person
+typed (OIDC Core §5.1); taking it as a name would admit a correctly signed
+token under somebody else's address. `sub` with `iss` is the only identifier
+the issuer promises is stable (OIDC Core §5.7), and the fallback ends there.
+
+A configured `UsernameClaim` is read as named, with no fallback and no
+`email_verified` check.
+
+**Changed in v0.2.0**: earlier versions fell back to `email` whether or not it
+was verified. A deployment that relied on that, with an issuer that does not
+send `email_verified`, now gets `sub` instead — and should name the claim it
+means.
+
 ## What it is not
 
 There is no login flow here: no redirect, no code exchange, no client secret,

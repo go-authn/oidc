@@ -39,21 +39,32 @@ func (t *Token) EmailVerified() bool { return t.boolean("email_verified") }
 
 // Username is the name to call this person, from the configured claim.
 //
-// The default order is preferred_username, then email, then sub. It is a
-// fallback rather than a requirement because providers differ about which they
-// send -- and it ends at sub, which every token has and which is the one the
-// issuer promises is stable. A deployment that maps people by name should say
-// which claim it means rather than take what arrives.
+// The default order is preferred_username, then email -- only when
+// email_verified is true -- then sub. It is a fallback rather than a
+// requirement because providers differ about which they send, and it ends at
+// sub, which every token has and which is the one the issuer promises is
+// stable (OIDC Core §5.7).
+//
+// ⛔ An email the issuer did not verify is skipped, not used: it is a string
+// the person typed (OIDC Core §5.1), and a correctly signed token carrying
+// somebody else's address would otherwise be admitted under that person's
+// name. Before v0.2.0 an unverified email was used.
+//
+// A deployment that maps people by name should say which claim it means
+// rather than take what arrives. A configured UsernameClaim is read as named,
+// with no fallback and no email_verified check: naming "email" there is a
+// decision about that issuer, and this does not second-guess it.
 func (t *Token) Username() string {
 	if t.usernameClaim != "" {
 		return t.str(t.usernameClaim)
 	}
-	for _, claim := range []string{"preferred_username", "email", "sub"} {
-		if v := t.str(claim); v != "" {
-			return v
-		}
+	if v := t.str("preferred_username"); v != "" {
+		return v
 	}
-	return ""
+	if v := t.Email(); v != "" && t.EmailVerified() {
+		return v
+	}
+	return t.Subject()
 }
 
 // Groups is the groups claim, which providers spell differently and some do

@@ -30,8 +30,9 @@ type Config struct {
 	JWKSURL string
 
 	// UsernameClaim is which claim names the person. Default
-	// "preferred_username", falling back to "email" and then "sub" -- see
-	// [Token.Username], where the fallback is explained.
+	// "preferred_username", falling back to "email" when email_verified is
+	// true, and then "sub" -- see [Token.Username], where the fallback is
+	// explained.
 	UsernameClaim string
 	// GroupsClaim is which claim carries their groups. Default "groups".
 	GroupsClaim string
