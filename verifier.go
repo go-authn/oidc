@@ -37,6 +37,19 @@ type Config struct {
 	// GroupsClaim is which claim carries their groups. Default "groups".
 	GroupsClaim string
 
+	// Type is the "typ" a token's header must carry, when it is set: "at+jwt"
+	// for a resource server taking access tokens (RFC 9068 4: it MUST check
+	// that typ is at+jwt), or the media type of whatever else an issuer
+	// signs. Compared without case and without an "application/" prefix (RFC
+	// 7515 4.1.9). Empty takes no typ, "JWT" or "at+jwt", as an ID token may
+	// carry any of them.
+	//
+	// ⛔ Without it a resource server takes an ID token for an access token
+	// whenever the audiences agree -- and an ID token is addressed to the
+	// client, which is exactly the audience a resource server is often
+	// configured with.
+	Type string
+
 	// ClockSkew is how much a clock may differ before a token is early or
 	// late. Default one minute; a provider and a server that disagree by more
 	// than that have a problem worth fixing rather than tolerating.
@@ -175,7 +188,11 @@ func (v *Verifier) Verify(ctx context.Context, raw string) (*Token, error) {
 	if !signatureAlgorithms[header.Alg] {
 		return nil, fmt.Errorf("oidc: this does not accept %q signatures", header.Alg)
 	}
-	if header.Typ != "" && !strings.EqualFold(header.Typ, "JWT") && !strings.EqualFold(header.Typ, "at+jwt") {
+	if want := v.cfg.Type; want != "" {
+		if !sameType(header.Typ, want) {
+			return nil, fmt.Errorf("oidc: a token of type %q, and this takes %q", header.Typ, want)
+		}
+	} else if header.Typ != "" && !sameType(header.Typ, "JWT") && !sameType(header.Typ, "at+jwt") {
 		return nil, fmt.Errorf("oidc: a token of type %q", header.Typ)
 	}
 	if err := v.keys.check(ctx, header, signed, signature); err != nil {
@@ -230,4 +247,16 @@ func (v *Verifier) now() time.Time {
 // limit caps what a provider can make this process read. A document that is
 // megabytes long is not a configuration; it is a way to spend somebody's
 // memory.
+// sameType compares two "typ" values as RFC 7515 4.1.9 says to: without
+// case, and with "application/" optional.
+func sameType(got, want string) bool {
+	trim := func(s string) string {
+		if len(s) > len("application/") && strings.EqualFold(s[:len("application/")], "application/") {
+			return s[len("application/"):]
+		}
+		return s
+	}
+	return got != "" && strings.EqualFold(trim(got), trim(want))
+}
+
 func limit(r io.Reader) io.Reader { return io.LimitReader(r, 1<<20) }
