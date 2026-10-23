@@ -1,0 +1,2 @@
+go test fuzz v1
+string("{\"iss\":\"https://login.example.test\",\"aud\":\"fileshare\",\"exp\":1e300,\"nbf\":1e19}")

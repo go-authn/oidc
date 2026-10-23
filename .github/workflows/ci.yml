@@ -102,6 +102,19 @@ jobs:
           fi
           awk -v c="$cov" 'BEGIN{if (c+0 < 100) printf "::warning::%.1f points short of the 100%% standard\n", 100-c}'
 
+  fuzz:
+    name: fuzz smoke ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [FuzzDecode, FuzzSplit, FuzzClaims, FuzzJWK, FuzzKeySet]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with: { go-version-file: go.mod, check-latest: true, cache: true }
+      - run: go test -run '^${{ matrix.target }}$' -fuzz '^${{ matrix.target }}$' -fuzztime 60s .
+
   arches:
     name: arch ${{ matrix.goarch }}
     runs-on: ubuntu-latest
