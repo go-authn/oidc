@@ -162,6 +162,12 @@ func (t *Token) boolean(name string) bool {
 	return b
 }
 
+// The NumericDates time can hold: 0001-01-01 and 9999-12-31T23:59:59 UTC.
+const (
+	minNumericDate = -62135596800
+	maxNumericDate = 253402300799
+)
+
 // time reads a NumericDate (RFC 7519 §2): seconds since the epoch, possibly
 // with a fraction.
 func (t *Token) time(name string) (time.Time, bool) {
@@ -173,6 +179,12 @@ func (t *Token) time(name string) (time.Time, bool) {
 	if err := json.Unmarshal(raw, &seconds); err != nil {
 		return time.Time{}, false
 	}
+	// ⛔ Converting a float beyond the int64 range is not defined in Go and
+	// gives the most NEGATIVE value on amd64 and arm64: an "nbf" of 1e19, a
+	// date in the far future, read as one in the far past, and a token not yet
+	// valid was accepted (found by FuzzClaims). Dates are held to years 1 to
+	// 9999, which keeps the order of every value that is out of range.
+	seconds = min(max(seconds, minNumericDate), maxNumericDate)
 	whole, frac := int64(seconds), seconds-float64(int64(seconds))
 	return time.Unix(whole, int64(frac*float64(time.Second))), true
 }

@@ -231,7 +231,13 @@ func (v *Verifier) check(tok *Token) error {
 	if now.After(exp.Add(v.cfg.ClockSkew)) {
 		return fmt.Errorf("oidc: the token expired %s ago", now.Sub(exp).Round(time.Second))
 	}
-	if nbf, ok := tok.NotBefore(); ok && now.Add(v.cfg.ClockSkew).Before(nbf) {
+	nbf, ok := tok.NotBefore()
+	if !ok && tok.Has("nbf") {
+		// An "nbf" that is not a NumericDate is not an absent one: ignoring
+		// it would accept a token its issuer said is not valid yet.
+		return fmt.Errorf("oidc: the token's nbf is not a date")
+	}
+	if ok && now.Add(v.cfg.ClockSkew).Before(nbf) {
 		return fmt.Errorf("oidc: the token is not valid for another %s", nbf.Sub(now).Round(time.Second))
 	}
 	return nil

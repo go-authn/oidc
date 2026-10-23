@@ -62,6 +62,8 @@ would be wrong.
 | a token with **no expiry** | that is not a token, it is a password somebody can copy once |
 | an **issuer** or a **key set over cleartext HTTP** | the JWKS decides every signature, and discovery at the issuer says where the JWKS is; over a link somebody can rewrite, so does everything else. Refused by `New`, at every redirect too (since v0.2.4: a redirect from https to http was followed). Loopback is exempt — there is no link |
 | an RSA key **under 2048 bits**, an EC point **not on the curve** | a short key is not a small inconvenience: it is a signature somebody else can produce. The size is counted in BITS, and `n` and `e` must be in their shortest form (RFC 7518 §2): before v0.2.2 a 1024-bit modulus padded with zero octets passed as 2048 bits |
+| an RSA key whose **exponent** is 0, 1, even, or past 2³¹−1 | `e = 1` makes every message its own signature; RFC 8017 §3.1 wants an odd `e ≥ 3`. Before v0.4.2 `e = 0` was read as a key (found by `FuzzJWK`) |
+| an **`nbf` in the far future** or one that is not a date | before v0.4.2 an `nbf` past the int64 range (`1e19`) wrapped to a date in the far past and a token not valid yet was accepted, and an `nbf` that was not a number was ignored (found by `FuzzClaims`). Dates are now held to years 1–9999, which keeps their order |
 | a key published for **encryption** (`use: enc`) | a key set legitimately holds both, and only one of them checks signatures |
 | with `Config.Type` set, a token of **another type** | an ID token is not an access token, even when its audience matches the one a resource server is configured with: RFC 9068 §4 requires a resource server to check `typ: at+jwt`. `Type` compares the header's `typ` without case, with `application/` optional (RFC 7515 §4.1.9), and also serves for anything else an issuer signs as a JWT. Unset, it takes no `typ`, `JWT` or `at+jwt` (since v0.4.0) |
 
@@ -137,6 +139,11 @@ question twice as large for everybody who needed one of them.
 - The three refusals that would be catastrophic if they quietly stopped working
   were **sabotage-checked**: accepting HMAC, comparing the issuer by prefix, and
   skipping the audience check each make a test say *the token was ACCEPTED*.
+- **Fuzzed** where the parsing lives: `FuzzDecode` (base64url has one
+  spelling), `FuzzSplit` (the signing input is the parts as sent),
+  `FuzzClaims` (dates never wrap), `FuzzJWK` and `FuzzKeySet` (a key that
+  parses is a safe one). Seeds are the committed vectors and the refusals
+  above; CI runs each for a minute on every pull request.
 
 ## Licence
 

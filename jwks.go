@@ -11,6 +11,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"math"
 	"math/big"
 	"net"
 	"net/http"
@@ -201,11 +203,24 @@ func (k *keySet) fetch(ctx context.Context) error {
 	if res.StatusCode != http.StatusOK {
 		return fmt.Errorf("oidc: the key set at %s answered %s", k.url, res.Status)
 	}
+	keys, untyped, err := parseKeySet(limit(res.Body))
+	if err != nil {
+		return fmt.Errorf("oidc: %s: %w", k.url, err)
+	}
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	k.keys, k.untyped = keys, untyped
+	return nil
+}
+
+// parseKeySet reads a JWK Set (RFC 7517 §5): the signature keys by kid, and
+// those without one.
+func parseKeySet(r io.Reader) (map[string]any, []any, error) {
 	var doc struct {
 		Keys []jwk `json:"keys"`
 	}
-	if err := json.NewDecoder(limit(res.Body)).Decode(&doc); err != nil {
-		return fmt.Errorf("oidc: the key set is not JSON: %w", err)
+	if err := json.NewDecoder(r).Decode(&doc); err != nil {
+		return nil, nil, fmt.Errorf("the key set is not JSON: %w", err)
 	}
 	keys := map[string]any{}
 	var untyped []any
@@ -230,12 +245,9 @@ func (k *keySet) fetch(ctx context.Context) error {
 		keys[j.Kid] = key
 	}
 	if len(keys) == 0 && len(untyped) == 0 {
-		return fmt.Errorf("oidc: %s published no key this can read", k.url)
+		return nil, nil, fmt.Errorf("it published no key this can read")
 	}
-	k.mu.Lock()
-	defer k.mu.Unlock()
-	k.keys, k.untyped = keys, untyped
-	return nil
+	return keys, untyped, nil
 }
 
 // A jwk is one published key (RFC 7517).
@@ -283,7 +295,15 @@ func (j jwk) parse() (any, error) {
 		if len(e) > 4 {
 			return nil, fmt.Errorf("oidc: an RSA exponent of %d octets", len(e))
 		}
-		return &rsa.PublicKey{N: modulus, E: int(new(big.Int).SetBytes(e).Int64())}, nil
+		// ⛔ The exponent must be odd and at least 3 (RFC 8017 §3.1; e = 1
+		// makes every message its own signature), and fit an int on 32-bit
+		// targets too, where 4 octets past 2^31-1 would wrap negative. e = 0
+		// was accepted before this (found by FuzzJWK).
+		exp := new(big.Int).SetBytes(e).Int64()
+		if exp < 3 || exp%2 == 0 || exp > math.MaxInt32 {
+			return nil, fmt.Errorf("oidc: an RSA exponent of %d", exp)
+		}
+		return &rsa.PublicKey{N: modulus, E: int(exp)}, nil
 	case "EC":
 		curve, size, err := curveFor(j.Crv)
 		if err != nil {
