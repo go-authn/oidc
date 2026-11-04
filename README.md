@@ -115,6 +115,31 @@ was verified. A deployment that relied on that, with an issuer that does not
 send `email_verified`, now gets `sub` instead — and should name the claim it
 means.
 
+## Several issuers, and only some institutions (v0.5.0)
+
+`oidc.NewSet(v1, v2, ...)` verifies tokens from several issuers, each with its
+own audience and key set. A token is routed by its **unverified** `iss` to the one
+verifier configured for exactly that issuer, and verified there (signature,
+exact `iss`, audience, times). The peek only chooses a key set; a forged token
+fails the verification that follows. An unknown `iss` is `ErrUnknownIssuer` and
+costs **no network access**; no other issuer's key set is ever tried; two
+verifiers for one issuer are refused; a token over `MaxTokenSize` (16 KiB) is
+refused before decoding. With one verifier the token goes straight to it: no peek,
+no extra allocation.
+
+Behind a federation proxy (eduGAIN through MyAccessID, eduTEAMS, Renater, a
+Keycloak broker), `oidc.Accept{Claim, Values}` and `oidc.Check(accepts, tok)`
+refuse a token unless its claim holds one of the institutions you serve. All
+accepts must hold; any value of a multi-valued claim matches; a claim that is
+absent or not a string (or a list of strings) holds nothing. The case rule comes
+from the claim's schema: `schac_home_organization` (SCHAC 1.6.0, a domain name,
+`caseIgnoreMatch`), `eduperson_scoped_affiliation` (eduPerson schema,
+`caseIgnoreMatch`) and `voperson_external_affiliation` (a scoped affiliation,
+AARC-G025) are compared without case; every other claim exactly. Only ASCII
+letters are folded: Unicode lower-casing maps the Kelvin sign U+212A to `k`.
+The claim has to be in the token that is verified: MyAccessID, for instance,
+releases `schac_home_organization` in userinfo, not in the ID token.
+
 ## What it is not
 
 There is no login flow here: no redirect, no code exchange, no client secret,
