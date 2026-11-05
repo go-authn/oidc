@@ -140,6 +140,21 @@ letters are folded: Unicode lower-casing maps the Kelvin sign U+212A to `k`.
 The claim has to be in the token that is verified: MyAccessID, for instance,
 releases `schac_home_organization` in userinfo, not in the ID token.
 
+## Scoped names, and whose scope it is (v0.6.0)
+
+An account is relative to an institution: behind a federation proxy one issuer
+vouches for people of many. `oidc.ScopedName(name, allowed, defaultScope)` turns a
+name into `local@scope`, ASCII-lower-cased (eduPersonPrincipalName is
+`caseIgnoreMatch` in the eduPerson schema, and single-valued), and **checks the
+scope** against what this issuer may assert (its own domains, or the institutions
+of the federation it serves), as Shibboleth checks a scope: another scope is
+`ErrScopeNotAllowed`, a name with none and no default is `ErrNoScope`. A name
+without `@` takes `defaultScope` (an institution whose accounts predate scoped
+names), which must be allowed too. `Token.ScopedUsername` does it on the token's
+username: set `UsernameClaim` to `eduperson_principal_name` (AARC-G056 name) or
+`voperson_id`. The scope is the part after the last `@`; only ASCII letters are
+folded.
+
 ## What it is not
 
 There is no login flow here: no redirect, no code exchange, no client secret,
