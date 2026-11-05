@@ -152,8 +152,9 @@ of the federation it serves), as Shibboleth checks a scope: another scope is
 without `@` takes `defaultScope` (an institution whose accounts predate scoped
 names), which must be allowed too. `Token.ScopedUsername` does it on the token's
 username: set `UsernameClaim` to `eduperson_principal_name` (AARC-G056 name) or
-`voperson_id`. The scope is the part after the last `@`; only ASCII letters are
-folded.
+`voperson_id`. The name is exactly one `local@scope`: a name with more than one `@` is
+`ErrBadName` (a consumer that splits at the first `@` would read another scope
+than one that splits at the last). Only ASCII letters are folded.
 
 ## What it is not
 

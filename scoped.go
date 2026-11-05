@@ -50,13 +50,18 @@ const (
 // A name without "@" takes defaultScope when it is not empty (the scope of an
 // institution whose accounts predate scoped names: "alice" at
 // "polytechnique.edu" is "alice@polytechnique.edu"), and is [ErrNoScope]
-// otherwise. A defaultScope must itself be allowed. With several "@" the
-// scope is what follows the last one. An empty local part or scope, a control
+// otherwise. A defaultScope must itself be allowed. More than one "@" is
+// [ErrBadName]: the rule is exactly one local@scope, so that a consumer that
+// splits at the first "@" and one that splits at the last read the same scope.
+// An empty local part or scope, a control
 // character, a space, or a name over the bounds is [ErrBadName]; a scope that
 // is not in allowed is [ErrScopeNotAllowed]. An empty allowed list allows no
 // scope.
 func ScopedName(name string, allowed []string, defaultScope string) (string, error) {
 	if len(name) > maxLocal+1+maxScope {
+		return "", ErrBadName
+	}
+	if strings.Count(name, "@") > 1 {
 		return "", ErrBadName
 	}
 	local, scope, ok := cutLast(name, '@')
