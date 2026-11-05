@@ -108,7 +108,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [FuzzDecode, FuzzSplit, FuzzClaims, FuzzJWK, FuzzKeySet, FuzzPeekIssuer, FuzzAccept]
+        target: [FuzzDecode, FuzzSplit, FuzzClaims, FuzzJWK, FuzzKeySet, FuzzPeekIssuer, FuzzAccept, FuzzScopedName]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
