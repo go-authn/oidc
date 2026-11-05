@@ -25,8 +25,8 @@ func TestScopedName(t *testing.T) {
 		{"alice", "", "", oidc.ErrNoScope},
 		{"alice", "univ-a.fr", "alice@univ-a.fr", nil},
 		{"alice", "univ-z.fr", "", oidc.ErrScopeNotAllowed}, // the default scope must be allowed too
-		{"a@b@univ-a.fr", "", "a@b@univ-a.fr", nil},         // the scope is after the last @
-		{"alice@univ-a.fr@univ-z.fr", "", "", oidc.ErrScopeNotAllowed},
+		{"a@b@univ-a.fr", "", "", oidc.ErrBadName},          // exactly one @
+		{"alice@univ-a.fr@univ-z.fr", "", "", oidc.ErrBadName},
 		{"@univ-a.fr", "", "", oidc.ErrBadName},
 		{"alice@", "", "", oidc.ErrBadName},
 		{"al ice@univ-a.fr", "", "", oidc.ErrBadName},
