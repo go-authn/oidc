@@ -36,7 +36,7 @@ var foldedClaims = map[string]bool{
 }
 
 // FoldsCase says whether values of claim are compared without case.
-func FoldsCase(claim string) bool { return foldedClaims[asciiLower(claim)] }
+func FoldsCase(claim string) bool { return foldedClaims[ASCIILower(claim)] }
 
 // Normalize is the form values of claim are compared in: ASCII-lower-cased
 // (and without one trailing dot) for the claims that fold, as they are
@@ -45,11 +45,15 @@ func Normalize(claim, v string) string {
 	if !FoldsCase(claim) {
 		return v
 	}
-	return asciiLower(strings.TrimSuffix(v, "."))
+	return ASCIILower(strings.TrimSuffix(v, "."))
 }
 
-// asciiLower folds A-Z only.
-func asciiLower(s string) string {
+// ASCIILower folds A-Z only: the fold the schema's caseIgnoreMatch is read as
+// for the names this package returns, and the one every consumer of those names
+// must use. strings.ToLower and strings.EqualFold fold Unicode, which equates
+// the Kelvin sign U+212A with "k": "Kate" and "kate" are two accounts at an
+// issuer, and one to a consumer that folds Unicode.
+func ASCIILower(s string) string {
 	for i := 0; i < len(s); i++ {
 		if c := s[i]; 'A' <= c && c <= 'Z' {
 			b := []byte(s)
@@ -62,6 +66,26 @@ func asciiLower(s string) string {
 		}
 	}
 	return s
+}
+
+// EqualASCIIFold reports whether a and b are the same name under [ASCIILower].
+func EqualASCIIFold(a, b string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := 0; i < len(a); i++ {
+		x, y := a[i], b[i]
+		if 'A' <= x && x <= 'Z' {
+			x += 'a' - 'A'
+		}
+		if 'A' <= y && y <= 'Z' {
+			y += 'a' - 'A'
+		}
+		if x != y {
+			return false
+		}
+	}
+	return true
 }
 
 // ClaimValues reads a claim as strings: a string, or a list of strings. A
