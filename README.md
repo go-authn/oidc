@@ -154,7 +154,12 @@ names), which must be allowed too. `Token.ScopedUsername` does it on the token's
 username: set `UsernameClaim` to `eduperson_principal_name` (AARC-G056 name) or
 `voperson_id`. The name is exactly one `local@scope`: a name with more than one `@` is
 `ErrBadName` (a consumer that splits at the first `@` would read another scope
-than one that splits at the last). Only ASCII letters are folded.
+than one that splits at the last). Only ASCII letters are folded, and a service
+that compares or stores these names must fold the same way:
+`oidc.ASCIILower(name)` and `oidc.EqualASCIIFold(a, b)` are that one fold.
+`strings.ToLower` and `strings.EqualFold` fold Unicode, which equates the Kelvin
+sign U+212A with "k": `Kate` (Kelvin) and `kate` are two accounts at an issuer
+and one to a consumer that folds Unicode.
 
 ## What it is not
 

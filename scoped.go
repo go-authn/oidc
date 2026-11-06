@@ -71,13 +71,13 @@ func ScopedName(name string, allowed []string, defaultScope string) (string, err
 		}
 		local, scope = name, defaultScope
 	}
-	scope = asciiLower(strings.TrimSuffix(scope, "."))
-	local = asciiLower(local)
+	scope = ASCIILower(strings.TrimSuffix(scope, "."))
+	local = ASCIILower(local)
 	if local == "" || scope == "" || len(local) > maxLocal || len(scope) > maxScope || badRunes(local) || badRunes(scope) || strings.ContainsRune(scope, '@') {
 		return "", ErrBadName
 	}
 	for _, a := range allowed {
-		if asciiLower(strings.TrimSuffix(a, ".")) == scope {
+		if ASCIILower(strings.TrimSuffix(a, ".")) == scope {
 			return local + "@" + scope, nil
 		}
 	}
