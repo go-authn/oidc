@@ -40,8 +40,8 @@ type keySet struct {
 	minRefresh time.Duration
 
 	mu      sync.Mutex
-	keys    map[string]any
-	untyped []any // keys published without a kid
+	keys    map[string]pubKey
+	untyped []pubKey // keys published without a kid
 
 	// asked is when the last fetch FINISHED, whether it succeeded or not.
 	// The window is counted from attempts rather than successes: counted from
@@ -144,7 +144,11 @@ func (k *keySet) tryHeld(header joseHeader, signed, signature []byte) error {
 		return errBadSignature
 	}
 	for _, key := range keys {
-		if err := verifySignature(header.Alg, key, signed, signature); err == nil {
+		// RFC 7517 §4.4: a key published with an "alg" is for that algorithm.
+		if key.alg != "" && key.alg != header.Alg {
+			continue
+		}
+		if err := verifySignature(header.Alg, key.key, signed, signature); err == nil {
 			return nil
 		}
 	}
@@ -161,10 +165,10 @@ func (k *keySet) has(kid string) bool {
 }
 
 // lookupLocked answers with the keys worth trying for a kid.
-func (k *keySet) lookupLocked(kid string) ([]any, bool) {
+func (k *keySet) lookupLocked(kid string) ([]pubKey, bool) {
 	if kid != "" {
 		if key, ok := k.keys[kid]; ok {
-			return []any{key}, true
+			return []pubKey{key}, true
 		}
 		// A token naming a kid the set does not have is not answered by
 		// trying the others: the issuer said which key, and a signature that
@@ -173,7 +177,7 @@ func (k *keySet) lookupLocked(kid string) ([]any, bool) {
 	}
 	// No kid: every key is a candidate, which is what an issuer publishing a
 	// single key without one intends. Signature verification decides.
-	var all []any
+	var all []pubKey
 	all = append(all, k.untyped...)
 	for _, key := range k.keys {
 		all = append(all, key)
@@ -215,22 +219,23 @@ func (k *keySet) fetch(ctx context.Context) error {
 
 // parseKeySet reads a JWK Set (RFC 7517 §5): the signature keys by kid, and
 // those without one.
-func parseKeySet(r io.Reader) (map[string]any, []any, error) {
+func parseKeySet(r io.Reader) (map[string]pubKey, []pubKey, error) {
 	var doc struct {
 		Keys []jwk `json:"keys"`
 	}
 	if err := json.NewDecoder(r).Decode(&doc); err != nil {
 		return nil, nil, fmt.Errorf("the key set is not JSON: %w", err)
 	}
-	keys := map[string]any{}
-	var untyped []any
+	keys := map[string]pubKey{}
+	var untyped []pubKey
 	for _, j := range doc.Keys {
 		// A key published for encryption is not a key to check signatures
 		// with, and a key set legitimately holds both.
 		if j.Use != "" && j.Use != "sig" {
 			continue
 		}
-		key, err := j.parse()
+		parsed, err := j.parse()
+		key := pubKey{key: parsed, alg: j.Alg}
 		if err != nil {
 			// One unreadable key does not spoil the set: an issuer that adds
 			// a kind this package does not know should not take a server
@@ -248,6 +253,12 @@ func parseKeySet(r io.Reader) (map[string]any, []any, error) {
 		return nil, nil, fmt.Errorf("it published no key this can read")
 	}
 	return keys, untyped, nil
+}
+
+// A pubKey is a parsed key and the "alg" it was published for ("" for any).
+type pubKey struct {
+	key any
+	alg string
 }
 
 // A jwk is one published key (RFC 7517).

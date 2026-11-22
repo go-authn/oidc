@@ -110,11 +110,15 @@ func PeekIssuer(raw string) (string, bool) {
 	if err != nil {
 		return "", false
 	}
-	var c struct {
-		Iss string `json:"iss"`
-	}
-	if json.Unmarshal(payload, &c) != nil || c.Iss == "" {
+	// A struct field would match "ISS" and "Iss" too (encoding/json folds
+	// case), routing on a claim the verifier will not read as the issuer.
+	var c map[string]json.RawMessage
+	if json.Unmarshal(payload, &c) != nil {
 		return "", false
 	}
-	return c.Iss, true
+	var iss string
+	if json.Unmarshal(c["iss"], &iss) != nil || iss == "" {
+		return "", false
+	}
+	return iss, true
 }
