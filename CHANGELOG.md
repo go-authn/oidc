@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.8.1
+
+- The https-or-loopback rule and the redirect policy now come from
+  `github.com/go-authn/harden/redirect` (closes #26), shared with rp, awscred,
+  saml and wireguard. Stricter than before: an `https:///x` URL with no host is
+  refused; `LOCALHOST` and `localhost.` are loopback; an IPv6 zone is not; the
+  error names the scheme and host, no longer the whole URL (it may carry a
+  secret). `.localhost` with an empty label is no longer loopback.
+
 ## v0.8.0
 
 Security audit 2026-11-21.

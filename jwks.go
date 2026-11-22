@@ -14,12 +14,11 @@ import (
 	"io"
 	"math"
 	"math/big"
-	"net"
 	"net/http"
-	"net/url"
-	"strings"
 	"sync"
 	"time"
+
+	"github.com/go-authn/harden/redirect"
 )
 
 // errBadSignature is what a signature that does not check says. It is one
@@ -372,18 +371,11 @@ func curveFor(name string) (elliptic.Curve, int, error) {
 // Loopback is exempt because there is no link: a test issuer, or a provider
 // on the same machine behind something else's TLS.
 func httpsOrLoopback(raw string) error {
-	u, err := url.Parse(raw)
-	if err != nil {
-		return fmt.Errorf("oidc: %q is not a URL", raw)
+	if err := redirect.HTTPSOrLoopback(raw); err != nil {
+		return fmt.Errorf("oidc: not https: the key set decides every signature, and over "+
+			"cleartext so does anybody on the way (%w)", err)
 	}
-	if u.Scheme == "https" {
-		return nil
-	}
-	if u.Scheme == "http" && loopbackHost(u.Hostname()) {
-		return nil
-	}
-	return fmt.Errorf("oidc: %s is not https: the key set decides every signature, "+
-		"and over cleartext so does anybody on the way", raw)
+	return nil
 }
 
 // stillHTTPS refuses a response whose LAST request left https, which is how a
@@ -391,14 +383,6 @@ func httpsOrLoopback(raw string) error {
 // the first URL alone.
 func stillHTTPS(res *http.Response) error {
 	return httpsOrLoopback(res.Request.URL.String()) // Client.Do always sets Request
-}
-
-func loopbackHost(host string) bool {
-	if host == "localhost" || strings.HasSuffix(host, ".localhost") {
-		return true
-	}
-	ip := net.ParseIP(host)
-	return ip != nil && ip.IsLoopback()
 }
 
 // minimal reports whether b is a Base64urlUInt in its shortest form: no
