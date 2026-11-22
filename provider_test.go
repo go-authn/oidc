@@ -80,7 +80,9 @@ func newProvider(t *testing.T) *provider {
 
 func (p *provider) rsaJWK() map[string]any {
 	return map[string]any{
-		"kty": "RSA", "kid": "rsa-1", "use": "sig", "alg": "RS256",
+		// No "alg": TestTheAlgorithmsThisAccepts signs with this key under RS256,
+		// RS512 and PS256, and a declared alg is honoured (RFC 7517 4.4).
+		"kty": "RSA", "kid": "rsa-1", "use": "sig",
 		"n": b64(p.rsaKey.N.Bytes()),
 		"e": b64(big.NewInt(int64(p.rsaKey.E)).Bytes()),
 	}
