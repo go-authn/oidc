@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/go-authn/harden/redirect"
 )
 
 // Config is what a verifier needs to know. Issuer and Audience are required:
@@ -101,12 +103,7 @@ func New(ctx context.Context, cfg Config) (*Verifier, error) {
 		// audit). A caller's own Client is covered by stillHTTPS after the
 		// fetch instead.
 		cfg.Client = &http.Client{Timeout: 30 * time.Second,
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				if len(via) >= 10 {
-					return fmt.Errorf("oidc: stopped after %d redirects", len(via))
-				}
-				return httpsOrLoopback(req.URL.String())
-			}}
+			CheckRedirect: redirect.CheckRedirect}
 	}
 	if cfg.ClockSkew == 0 {
 		cfg.ClockSkew = time.Minute
