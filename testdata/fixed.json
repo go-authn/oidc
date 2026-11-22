@@ -17,7 +17,6 @@
   "jwks": {
     "keys": [
       {
-        "alg": "RS256",
         "e": "AQAB",
         "kid": "rsa-fixed",
         "kty": "RSA",

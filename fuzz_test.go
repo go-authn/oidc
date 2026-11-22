@@ -217,7 +217,7 @@ func FuzzKeySet(f *testing.F) {
 			t.Fatal("an empty key set without an error")
 		}
 		for kid, k := range keys {
-			if kid == "" || k == nil {
+			if kid == "" || k.key == nil {
 				t.Fatalf("key %q: %v", kid, k)
 			}
 		}

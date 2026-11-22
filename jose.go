@@ -6,6 +6,7 @@ import (
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/ed25519"
+	"crypto/elliptic"
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/sha512"
@@ -101,6 +102,12 @@ func verifySignature(alg string, key any, signed, signature []byte) error {
 		if !ok {
 			return fmt.Errorf("oidc: the token says %s and the key is %T", alg, key)
 		}
+		// RFC 7518 §3.4: ES256 is P-256 with SHA-256, ES384 P-384 with
+		// SHA-384, ES512 P-521 with SHA-512. A key on another curve is not the
+		// key of that algorithm.
+		if want := curveOfAlg(alg); pub.Curve != want {
+			return fmt.Errorf("oidc: the token says %s and the key is on %s", alg, pub.Curve.Params().Name)
+		}
 		// JOSE writes an ECDSA signature as r||s, each padded to the curve's
 		// byte length (RFC 7518 §3.4) -- not the ASN.1 sequence
 		// ecdsa.VerifyASN1 takes.
@@ -125,6 +132,17 @@ func verifySignature(alg string, key any, signed, signature []byte) error {
 		return nil
 	}
 	return fmt.Errorf("oidc: nothing here verifies %q", alg)
+}
+
+// curveOfAlg is the curve an ES algorithm is defined on (RFC 7518 §3.4).
+func curveOfAlg(alg string) elliptic.Curve {
+	switch alg {
+	case "ES256":
+		return elliptic.P256()
+	case "ES384":
+		return elliptic.P384()
+	}
+	return elliptic.P521()
 }
 
 // hashFor is the digest an algorithm signs over. EdDSA signs the message
